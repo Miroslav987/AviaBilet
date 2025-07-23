@@ -16,39 +16,79 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import debounce from "lodash.debounce";
-import { log } from "console";
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// Локальный список аэропортов для автокомплита
 const airports = [
-  { label: "Москва (MOW)", value: "MOW" },
-  { label: "Нью-Йорк (JFK)", value: "JFK" },
-  { label: "Лондон (LON)", value: "LON" },
-  { label: "Париж (PAR)", value: "PAR" },
-  { label: "Токио (TYO)", value: "TYO" },
+  { city: "Москва", country: "Россия", code: "MOW" },
+  { city: "Санкт-Петербург", country: "Россия", code: "LED" },
+  { city: "Новосибирск", country: "Россия", code: "OVB" },
+  { city: "Екатеринбург", country: "Россия", code: "SVX" },
+  { city: "Казань", country: "Россия", code: "KZN" },
+  { city: "Сочи", country: "Россия", code: "AER" },
+  { city: "Красноярск", country: "Россия", code: "KJA" },
+  { city: "Владивосток", country: "Россия", code: "VVO" },
+  { city: "Уфа", country: "Россия", code: "UFA" },
+  { city: "Самара", country: "Россия", code: "KUF" },
+
+  { city: "Бишкек", country: "Кыргызстан", code: "FRU" },
+  { city: "Ош", country: "Кыргызстан", code: "OSS" },
+  { city: "Исфана", country: "Кыргызстан", code: "LYP" },
+  { city: "Баткен", country: "Кыргызстан", code: "БТК" },
+  { city: "Джалал-Абад", country: "Кыргызстан", code: "ДЖА" },
+  { city: "Каракол", country: "Кыргызстан", code: "КРК" },
+  { city: "Нарын", country: "Кыргызстан", code: "НРН" },
+  { city: "Талас", country: "Кыргызстан", code: "ТЛС" },
+  { city: "Кызыл-Кия", country: "Кыргызстан", code: "ККЯ" },
+
+  { city: "Нью-Йорк", country: "США", code: "JFK" },
+  { city: "Лондон", country: "Великобритания", code: "LON" },
+  { city: "Париж", country: "Франция", code: "PAR" },
+  { city: "Токио", country: "Япония", code: "TYO" },
 ];
+
+// Опции для автокомплита показывают только города
+const fromOptions = airports.map((a) => ({ value: a.city }));
+const toOptions = airports.map((a) => ({ value: a.city }));
+
+// Поиск по городу (фильтрация по названию города)
+const filterAirportsByCity = (input: string) =>
+  airports.filter((a) => a.city.toLowerCase().includes(input.toLowerCase()));
+
+// Найти IATA код по названию города
+const findCodeByCity = (city: string) => {
+  const found = airports.find(
+    (a) => a.city.toLowerCase() === city.toLowerCase()
+  );
+  return found ? found.code : null;
+};
+
+// Найти город по IATA коду
+const findCityByCode = (code: string) => {
+  const found = airports.find(
+    (a) => a.code.toUpperCase() === code.toUpperCase()
+  );
+  return found ? found.city : code;
+};
 
 export default function DuffelFlights() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loading2, setLoading2] = useState(false);
   const [roundTrip, setRoundTrip] = useState(false);
   const [form] = Form.useForm();
 
-  // Опции для автокомплита
-  const [fromOptions, setFromOptions] = useState(airports);
-  const [toOptions, setToOptions] = useState(airports);
+  const [fromAutoOptions, setFromAutoOptions] = useState(fromOptions);
+  const [toAutoOptions, setToAutoOptions] = useState(toOptions);
 
   const onSearchFrom = useMemo(
     () =>
       debounce((value: string) => {
-        const filtered = airports.filter(
-          (a) =>
-            a.label.toLowerCase().includes(value.toLowerCase()) ||
-            a.value.toLowerCase().includes(value.toLowerCase())
-        );
-        setFromOptions(filtered);
+        const filtered = filterAirportsByCity(value).map((a) => ({
+          value: a.city,
+        }));
+        setFromAutoOptions(filtered.length ? filtered : [{ value: value }]);
       }, 300),
     []
   );
@@ -56,26 +96,79 @@ export default function DuffelFlights() {
   const onSearchTo = useMemo(
     () =>
       debounce((value: string) => {
-        const filtered = airports.filter(
-          (a) =>
-            a.label.toLowerCase().includes(value.toLowerCase()) ||
-            a.value.toLowerCase().includes(value.toLowerCase())
-        );
-        setToOptions(filtered);
+        const filtered = filterAirportsByCity(value).map((a) => ({
+          value: a.city,
+        }));
+        setToAutoOptions(filtered.length ? filtered : [{ value: value }]);
       }, 300),
     []
   );
 
-  const onFinish = async (values: any) => {
-    const origin = values.from?.toUpperCase();
-    if (!origin || origin.length !== 3) {
-      message.error('Поле "Откуда" должно содержать 3-буквенный код IATA, например, MOW');
+  const today = new Date();
+
+const ReadyFinish = async () => {
+  const today = new Date();
+
+  function formatDate(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  const departureDate = formatDate(new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000));
+  const returnDate = formatDate(new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000));
+
+  // Автозаполняем форму
+  setRoundTrip(true);
+  form.setFieldsValue({
+    from: "Москва",
+    to: "Бишкек",
+    travelClass: "ECONOMY",
+    adults: 1,
+    rangePicker: [dayjs(departureDate), dayjs(returnDate)],
+  });
+
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/searchDuffel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origin: "MOW",
+        destination: "FRU",
+        departureDate,
+        returnDate,
+        adults: 1,
+        cabinClass: "ECONOMY",
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      message.error(errData.error || "Ошибка при поиске билетов");
+      setLoading(false);
       return;
     }
 
-    const destination = values.to?.toUpperCase();
-    if (!destination || destination.length !== 3) {
-      message.error('Поле "Куда" должно содержать 3-буквенный код IATA, например, JFK');
+    const data = await res.json();
+    setResults(data.data?.offers || []);
+  } catch (error) {
+    message.error("Ошибка при запросе к API");
+    console.error(error);
+  }
+  setLoading(false);
+};
+
+  const onFinish = async (values: any) => {
+    // Получаем коды IATA из выбранных городов
+    const originCode = findCodeByCity(values.from);
+    const destinationCode = findCodeByCity(values.to);
+
+    if (!originCode) {
+      message.error("Неизвестный город отправления, выберите из списка.");
+      return;
+    }
+    if (!destinationCode) {
+      message.error("Неизвестный город назначения, выберите из списка.");
       return;
     }
 
@@ -110,8 +203,8 @@ export default function DuffelFlights() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          origin,
-          destination,
+          origin: originCode,
+          destination: destinationCode,
           departureDate,
           returnDate,
           adults: values.adults || 1,
@@ -127,42 +220,13 @@ export default function DuffelFlights() {
       }
 
       const data = await res.json();
-      setResults(data.data.offers || []);
-      console.log(results);
-      
+      setResults(data.data?.offers || []);
     } catch (error) {
       message.error("Ошибка при запросе к API");
       console.error(error);
     }
 
     setLoading(false);
-  };
-
-  const renderItinerary = (itinerary: any, label: string) => {
-    if (!itinerary || !itinerary.segments) return null;
-    const departure = itinerary.segments[0].departure;
-    const arrival = itinerary.segments[itinerary.segments.length - 1].arrival;
-
-    return (
-      <div key={label} style={{ marginBottom: 12 }}>
-        <b>{label}</b>
-        <Row style={{ display: "flex", gap: 20, alignItems: "center" }}>
-          <Col>
-            <p>Вылет:</p>
-            <p>{departure.iataCode}</p>
-            <p>{dayjs(departure.at).format("DD MMM YYYY, HH:mm")}</p>
-          </Col>
-          <Col style={{ fontSize: 24, fontWeight: "bold", alignSelf: "flex-end" }}>
-            →
-          </Col>
-          <Col>
-            <p>Прибытие:</p>
-            <p>{arrival.iataCode}</p>
-            <p>{dayjs(arrival.at).format("DD MMM YYYY, HH:mm")}</p>
-          </Col>
-        </Row>
-      </div>
-    );
   };
 
   return (
@@ -176,10 +240,9 @@ export default function DuffelFlights() {
               rules={[{ required: true, message: "Введите город отправления" }]}
             >
               <AutoComplete
-                options={fromOptions}
+                options={fromAutoOptions}
                 onSearch={onSearchFrom}
-                onSelect={(value) => form.setFieldsValue({ from: value })}
-                placeholder="IATA код или город (например MOW)"
+                placeholder="Начните ввод города"
                 filterOption={false}
                 allowClear
               />
@@ -193,10 +256,9 @@ export default function DuffelFlights() {
               rules={[{ required: true, message: "Введите город назначения" }]}
             >
               <AutoComplete
-                options={toOptions}
+                options={toAutoOptions}
                 onSearch={onSearchTo}
-                onSelect={(value) => form.setFieldsValue({ to: value })}
-                placeholder="IATA код или город (например JFK)"
+                placeholder="Начните ввод города"
                 filterOption={false}
                 allowClear
               />
@@ -257,60 +319,86 @@ export default function DuffelFlights() {
             </Form.Item>
           </Col>
 
-          <Col span={3} style={{ display: "flex", alignItems: "end" }}>
+          <Row >
             <Form.Item>
               <Button type="primary" htmlType="submit" loading={loading}>
                 Найти
               </Button>
+              <Button style={{ marginLeft:10}} type="primary" onClick={ReadyFinish} loading={loading2}>
+                готовый запрос
+              </Button>
             </Form.Item>
-          </Col>
+          </Row>
         </Row>
       </Form>
 
-<List
-  header={<b>Результаты поиска</b>}
-  bordered
-  style={{ marginTop: 20 }}
-  dataSource={results}
-  renderItem={(offer, index) => {
-    if (!offer || !offer.slices) return null;
+      <List
+        header={<b>Результаты поиска</b>}
+        bordered
+        style={{ marginTop: 20 }}
+        dataSource={results}
+        renderItem={(offer, index) => {
+          if (!offer || !offer.slices) return null;
 
-    return (
-      <List.Item key={index}>
-        <div style={{ width: "100%" }}>
-          {offer.slices.map((slice: any, i: number) => {
-            const dep = slice.segments[0]?.departing_at;
-            const arr = slice.segments[slice.segments.length - 1]?.arriving_at;
+          return (
+            <List.Item key={index}>
+              <div style={{ width: "100%" }}>
+                {offer.slices.map((slice: any, i: number) => {
+                  const dep = slice.segments[0]?.departing_at;
+                  const arr =
+                    slice.segments[slice.segments.length - 1]?.arriving_at;
 
-            return (
-              <div key={slice.id || i} style={{ marginBottom: 12 }}>
-                <b>{i === 0 ? "Туда" : "Обратно"}</b>
-                <Row style={{ display: "flex", gap: 20, alignItems: "center" }}>
-                  <Col>
-                    <p>Вылет: {slice.origin.iata_code}</p>
-                    <p>{dep ? dayjs(dep).format("DD MMM YYYY, HH:mm") : "-"}</p>
-                  </Col>
-                  <Col style={{ fontSize: 24, fontWeight: "bold", alignSelf: "flex-end" }}>
-                    →
-                  </Col>
-                  <Col>
-                    <p>Прибытие: {slice.destination.iata_code}</p>
-                    <p>{arr ? dayjs(arr).format("DD MMM YYYY, HH:mm") : "-"}</p>
-                  </Col>
+                  return (
+                    <div key={slice.id || i} style={{ marginBottom: 12 }}>
+                      <b>{i === 0 ? "Туда" : "Обратно"}</b>
+                      <Row
+                        style={{
+                          display: "flex",
+                          gap: 20,
+                          alignItems: "center",
+                        }}
+                      >
+                        <Col>
+                          <p>Вылет: {findCityByCode(slice.origin.iata_code)}</p>
+                          <p>
+                            {dep
+                              ? dayjs(dep).format("DD MMM YYYY, HH:mm")
+                              : "-"}
+                          </p>
+                        </Col>
+                        <Col
+                          style={{
+                            fontSize: 24,
+                            fontWeight: "bold",
+                            alignSelf: "flex-end",
+                          }}
+                        >
+                          →
+                        </Col>
+                        <Col>
+                          <p>
+                            Прибытие:{" "}
+                            {findCityByCode(slice.destination.iata_code)}
+                          </p>
+                          <p>
+                            {arr
+                              ? dayjs(arr).format("DD MMM YYYY, HH:mm")
+                              : "-"}
+                          </p>
+                        </Col>
+                      </Row>
+                    </div>
+                  );
+                })}
+
+                <Row justify="end" style={{ fontWeight: "bold" }}>
+                  Цена: {offer.total_amount} {offer.total_currency}
                 </Row>
               </div>
-            );
-          })}
-
-          <Row justify="end" style={{ fontWeight: "bold" }}>
-            Цена: {offer.total_amount} {offer.total_currency}
-          </Row>
-        </div>
-      </List.Item>
-    );
-  }}
-/>
-
+            </List.Item>
+          );
+        }}
+      />
     </div>
   );
 }

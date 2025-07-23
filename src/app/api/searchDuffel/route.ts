@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 const DUFFEL_API_KEY = 'duffel_test_4jGVpZ-z7JvDsZJ6T1GJaK9znGCmeMzg5x2uqv_HupS'
 
 export async function POST(request: NextRequest) {
-  console.log('🔥 API route reached')
+
 
   try {
     const body = await request.json()
-    console.log('📦 Request body:', body)
+    console.log(' Request body:', body)
 
     const {
       origin,
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('📨 Payload being sent to Duffel:', JSON.stringify(payload, null, 2))
+    console.log(' Payload being sent to Duffel:', JSON.stringify(payload, null, 2))
 
     const response = await axios.post(
       'https://api.duffel.com/air/offer_requests',
@@ -64,11 +64,11 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    console.log('✅ Duffel API response:', response.data)
+    console.log(' Duffel API response:', response.data)
     return NextResponse.json(response.data)
   } catch (error: any) {
-    console.error('💥 Duffel API error FULL:', error)
-    console.error('💥 Duffel API response:', error?.response?.data)
+    console.error(' Duffel API error FULL:', error)
+    console.error(' Duffel API response:', error?.response?.data)
     return NextResponse.json(
       { error: 'Failed to fetch data from Duffel' },
       { status: 500 }

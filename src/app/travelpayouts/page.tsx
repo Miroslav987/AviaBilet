@@ -20,22 +20,49 @@ import debounce from "lodash.debounce";
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// Пример аэропортов (можно расширить или сделать запрос к API)
 const airports = [
   { label: "Москва (MOW)", value: "MOW" },
+  { label: "Санкт-Петербург (LED)", value: "LED" },
+  { label: "Новосибирск (OVB)", value: "OVB" },
+  { label: "Екатеринбург (SVX)", value: "SVX" },
+  { label: "Казань (KZN)", value: "KZN" },
+  { label: "Сочи (AER)", value: "AER" },
+  { label: "Красноярск (KJA)", value: "KJA" },
+  { label: "Владивосток (VVO)", value: "VVO" },
+  { label: "Уфа (UFA)", value: "UFA" },
+  { label: "Самара (KUF)", value: "KUF" },
+
+  { label: "Бишкек (FRU)", value: "FRU" },
+  { label: "Ош (OSS)", value: "OSS" },
+  { label: "Исфана (LYP)", value: "LYP" },
+  { label: "Баткен (БТК)", value: "БТК" },
+  { label: "Джалал-Абад (ДЖА)", value: "ДЖА" },
+  { label: "Каракол (КРК)", value: "КРК" },
+  { label: "Нарын (НРН)", value: "НРН" },
+  { label: "Талас (ТЛС)", value: "ТЛС" },
+  { label: "Кызыл-Кия (ККЯ)", value: "ККЯ" },
+
   { label: "Нью-Йорк (JFK)", value: "JFK" },
   { label: "Лондон (LON)", value: "LON" },
   { label: "Париж (PAR)", value: "PAR" },
   { label: "Токио (TYO)", value: "TYO" },
 ];
 
+// Получить label по коду
+const getLabelByCode = (code: string) => {
+  const found = airports.find(
+    (airport) => airport.value.toUpperCase() === code.toUpperCase()
+  );
+  return found ? found.label : code;
+};
+
 export default function TravelpayoutsFlights() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+    const [loading2, setLoading2] = useState(false);
   const [roundTrip, setRoundTrip] = useState(false);
   const [form] = Form.useForm();
 
-  // Для фильтрации автокомплита
   const [fromOptions, setFromOptions] = useState(airports);
   const [toOptions, setToOptions] = useState(airports);
 
@@ -64,6 +91,66 @@ export default function TravelpayoutsFlights() {
       }, 300),
     []
   );
+
+  // При выборе опции в AutoComplete сохраняем в форму не label, а value (код)
+  const onSelectFrom = (value: string) => {
+    form.setFieldsValue({ from: value });
+  };
+  const onSelectTo = (value: string) => {
+    form.setFieldsValue({ to: value });
+  };
+
+  const ReadyFinish = async () => {
+    const today = new Date();
+  
+    function formatDate(date: Date) {
+      return date.toISOString().slice(0, 10);
+    }
+  
+    const departureDate = formatDate(new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000));
+    const returnDate = formatDate(new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000));
+  
+    // Автозаполняем форму
+    setRoundTrip(true);
+    form.setFieldsValue({
+      from: "Москва",
+      to: "Бишкек",
+      travelClass: "ECONOMY",
+      adults: 1,
+      rangePicker: [dayjs(departureDate), dayjs(returnDate)],
+    });
+  
+    setLoading(true);
+  
+    try {
+      const res = await fetch("/api/searchTravelpayouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin: "MOW",
+          destination: "FRU",
+          departureDate,
+          returnDate,
+          adults: 1,
+          travelClass: "ECONOMY",
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        message.error(errData.error || "Ошибка при поиске билетов");
+        setLoading(false);
+        return;
+      }
+  
+      const data = await res.json();
+       setResults(data.data || []);
+    } catch (error) {
+      message.error("Ошибка при запросе к API");
+      console.error(error);
+    }
+    setLoading(false);
+  };
 
   const onFinish = async (values: any) => {
     const origin = values.from?.toUpperCase();
@@ -144,25 +231,33 @@ export default function TravelpayoutsFlights() {
 
     return (
       <div key={label} style={{ marginBottom: 12 }}>
+        
         <b>{label}</b>
         <Row style={{ display: "flex", gap: 20, alignItems: "center" }}>
           <Col>
             <p>Вылет:</p>
-            <p>{flight.origin_airport || flight.origin}</p>
+            <p>{getLabelByCode(flight.origin_airport || flight.origin)}</p>
             <p>{dayjs(flight.departure_at).format("DD MMM YYYY, HH:mm")}</p>
           </Col>
-          <Col style={{ fontSize: 24, fontWeight: "bold", alignSelf: "flex-end" }}>
+          <Col
+            style={{ fontSize: 24, fontWeight: "bold", alignSelf: "flex-end" }}
+          >
             →
           </Col>
           <Col>
             <p>Прибытие:</p>
-            <p>{flight.destination_airport || flight.destination}</p>
-            <p>{dayjs(isReturn ? flight.return_at : flight.departure_at).format("DD MMM YYYY, HH:mm")}</p>
+            <p>{getLabelByCode(flight.destination_airport || flight.destination)}</p>
+            <p>
+              {dayjs(
+                isReturn ? flight.return_at : flight.departure_at
+              ).format("DD MMM YYYY, HH:mm")}
+            </p>
           </Col>
         </Row>
-        <p>Рейс: {flight.airline} {flight.flight_number}</p>
-        <p>Цена: {flight.price} USD</p>
-
+        {/* <p>
+          Рейс: {flight.airline} {flight.flight_number}
+        </p> */}
+        
       </div>
     );
   };
@@ -180,8 +275,8 @@ export default function TravelpayoutsFlights() {
               <AutoComplete
                 options={fromOptions}
                 onSearch={onSearchFrom}
-                onSelect={(value) => form.setFieldsValue({ from: value })}
-                placeholder="IATA код или город (например MOW)"
+                onSelect={onSelectFrom}
+                placeholder="IATA код или город (например Москва (MOW))"
                 filterOption={false}
                 allowClear
               />
@@ -197,8 +292,8 @@ export default function TravelpayoutsFlights() {
               <AutoComplete
                 options={toOptions}
                 onSearch={onSearchTo}
-                onSelect={(value) => form.setFieldsValue({ to: value })}
-                placeholder="IATA код или город (например JFK)"
+                onSelect={onSelectTo}
+                placeholder="IATA код или город (например Нью-Йорк (JFK))"
                 filterOption={false}
                 allowClear
               />
@@ -259,13 +354,16 @@ export default function TravelpayoutsFlights() {
             </Form.Item>
           </Col>
 
-          <Col span={3} style={{ display: "flex", alignItems: "end" }}>
+          <Row >
             <Form.Item>
               <Button type="primary" htmlType="submit" loading={loading}>
                 Найти
               </Button>
+              <Button style={{ marginLeft:10}} type="primary" onClick={ReadyFinish} loading={loading2}>
+                готовый запрос
+              </Button>
             </Form.Item>
-          </Col>
+          </Row>
         </Row>
       </Form>
 
@@ -278,6 +376,8 @@ export default function TravelpayoutsFlights() {
           <List.Item key={index} style={{ width: "100%" }}>
             {renderFlight(item, "Туда")}
             {roundTrip && item.return_at && renderFlight(item, "Обратно", true)}
+            <p>Цена: {item.price} USD</p>
+
           </List.Item>
         )}
       />
